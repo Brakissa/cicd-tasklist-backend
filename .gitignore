@@ -132,3 +132,16 @@ dist
 dist/
 
 .scannerwork/
+
+# Sensitive / local files
+.env
+.env.production
+.env.test
+
+# Editor and IDE folders
+.vscode/
+.idea/
+*.iml
+
+# Temporary OS files
+Thumbs.db
