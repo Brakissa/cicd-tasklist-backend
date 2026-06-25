@@ -146,3 +146,4 @@ dist/
 
 # Temporary OS files
 Thumbs.db
+sbom.json
