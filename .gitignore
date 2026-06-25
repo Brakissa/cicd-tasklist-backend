@@ -149,3 +149,5 @@ dist/
 
 # Temporary OS files
 Thumbs.db
+
+sonar-project.properties
