@@ -6,15 +6,14 @@ pipeline {
     SONAR_HOST_URL = 'https://sonarqube.cicd.kits.ext.educentre.fr'
     SONAR_PROJECT_KEY = 'brakissa-tasklist-backend'
     SONAR_PROJECT_NAME = 'brakissa-tasklist-backend'
-    DOCKERHUB_CREDENTIALS_ID = 'your-dockerhub-credentials-id'
-    SONAR_TOKEN_CREDENTIAL_ID = 'squ_774ce619548b530cd9982b7463616e209050d65d'
-    DOCKERHUB_REPOSITORY = 'your-dockerhub-username/tasklist-backend'
+    DOCKERHUB_CREDENTIALS_ID = 'brakissa-dockerhub-password'
+    SONAR_TOKEN_CREDENTIAL_ID = 'brakissa-sonar-token'
+    DOCKERHUB_REPOSITORY = 'kiss04/tasklist-backend'
     IMAGE_TAG = "${env.BUILD_NUMBER}"
   }
 
   options {
     timestamps()
-    ansiColor('xterm')
     disableConcurrentBuilds()
   }
 
