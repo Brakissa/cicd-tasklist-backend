@@ -1,0 +1,149 @@
+pipeline {
+  agent any
+
+  environment {
+    NODE_ENV = 'test'
+    SONAR_HOST_URL = 'https://sonarqube.cicd.kits.ext.educentre.fr'
+    SONAR_PROJECT_KEY = 'brakissa-tasklist-backend'
+    SONAR_PROJECT_NAME = 'brakissa-tasklist-backend'
+    DOCKERHUB_CREDENTIALS_ID = 'your-dockerhub-credentials-id'
+    SONAR_TOKEN_CREDENTIAL_ID = 'squ_774ce619548b530cd9982b7463616e209050d65d'
+    DOCKERHUB_REPOSITORY = 'your-dockerhub-username/tasklist-backend'
+    IMAGE_TAG = "${env.BUILD_NUMBER}"
+  }
+
+  options {
+    timestamps()
+    ansiColor('xterm')
+    disableConcurrentBuilds()
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
+    }
+
+    stage('Install dependencies') {
+      steps {
+        sh 'npm ci'
+      }
+    }
+
+    stage('Generate Prisma client') {
+      steps {
+        sh 'npm run prisma:generate'
+      }
+    }
+
+    stage('Run unit tests') {
+      steps {
+        sh 'npm run test:coverage'
+      }
+      post {
+        always {
+          junit allowEmptyResults: true, testResults: 'reports/junit.xml'
+          archiveArtifacts allowEmptyArchive: true, artifacts: 'reports/junit.xml', fingerprint: true
+        }
+      }
+    }
+
+    stage('Run e2e tests') {
+      steps {
+        sh 'npm run test:e2e:coverage'
+      }
+    }
+
+    stage('Build TypeScript') {
+      steps {
+        sh 'npm run build'
+      }
+    }
+
+    stage('SonarQube analysis') {
+      steps {
+        withCredentials([string(credentialsId: env.SONAR_TOKEN_CREDENTIAL_ID, variable: 'SONAR_TOKEN')]) {
+          sh '''
+            npx sonar-scanner \
+              -Dsonar.host.url=$SONAR_HOST_URL \
+              -Dsonar.login=$SONAR_TOKEN \
+              -Dsonar.projectKey=$SONAR_PROJECT_KEY \
+              -Dsonar.projectName=$SONAR_PROJECT_NAME \
+              -Dsonar.sources=src \
+              -Dsonar.tests=src/__tests__ \
+              -Dsonar.test.inclusions=src/__tests__/**/*.test.ts,src/__tests__/**/*.e2e.test.ts \
+              -Dsonar.exclusions=node_modules/**,dist/**,coverage/**,reports/**,prisma/migrations/**,**/*.config.ts,**/*.config.js \
+              -Dsonar.typescript.lcov.reportPaths=coverage/lcov.info \
+              -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+          '''
+        }
+      }
+    }
+
+    stage('Quality Gate') {
+      steps {
+        timeout(time: 10, unit: 'MINUTES') {
+          waitForQualityGate abortPipeline: true
+        }
+      }
+    }
+
+    stage('Build Docker image') {
+      steps {
+        sh "docker build -t ${DOCKERHUB_REPOSITORY}:${IMAGE_TAG} ."
+      }
+    }
+
+    stage('Trivy image scan') {
+      steps {
+        sh "trivy image --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL --format table --output trivy-report.txt ${DOCKERHUB_REPOSITORY}:${IMAGE_TAG}"
+      }
+      post {
+        always {
+          archiveArtifacts allowEmptyArchive: true, artifacts: 'trivy-report.txt', fingerprint: true
+        }
+      }
+    }
+
+    stage('Generate SBOM') {
+      steps {
+        sh "trivy image --format cyclonedx --output sbom.json ${DOCKERHUB_REPOSITORY}:${IMAGE_TAG}"
+      }
+      post {
+        always {
+          archiveArtifacts allowEmptyArchive: true, artifacts: 'sbom.json', fingerprint: true
+        }
+      }
+    }
+
+    stage('Publish Docker image') {
+      when {
+        branch 'main'
+      }
+      steps {
+        withCredentials([usernamePassword(credentialsId: env.DOCKERHUB_CREDENTIALS_ID, usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+          sh '''
+            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+            docker tag ${DOCKERHUB_REPOSITORY}:${IMAGE_TAG} ${DOCKERHUB_REPOSITORY}:latest
+            docker push ${DOCKERHUB_REPOSITORY}:${IMAGE_TAG}
+            docker push ${DOCKERHUB_REPOSITORY}:latest
+          '''
+        }
+      }
+    }
+  }
+
+  post {
+    always {
+      echo 'Nettoyage du workspace Jenkins.'
+      deleteDir()
+    }
+    success {
+      echo 'Pipeline CI/CD terminée avec succès.'
+    }
+    failure {
+      echo 'La pipeline CI/CD a échoué.'
+    }
+  }
+}
