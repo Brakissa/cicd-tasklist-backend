@@ -98,8 +98,7 @@ pipeline {
 
     stage('Trivy image scan') {
       steps {
-        sh "trivy image --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL --format table --output trivy-report.txt ${DOCKERHUB_REPOSITORY}:${IMAGE_TAG}"
-      }
+        sh "trivy image --cache-dir /tmp/trivy-cache-${BUILD_NUMBER} --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL --format table --output trivy-report.txt ${DOCKERHUB_REPOSITORY}:${IMAGE_TAG}"      }
       post {
         always {
           archiveArtifacts allowEmptyArchive: true, artifacts: 'trivy-report.txt', fingerprint: true
@@ -108,14 +107,14 @@ pipeline {
     }
 
     stage('Generate SBOM') {
-      steps {
-        sh "trivy image --format cyclonedx --output sbom.json ${DOCKERHUB_REPOSITORY}:${IMAGE_TAG}"
-      }
-      post {
-        always {
-          archiveArtifacts allowEmptyArchive: true, artifacts: 'sbom.json', fingerprint: true
+        steps {
+            sh "trivy image --cache-dir /tmp/trivy-cache-${BUILD_NUMBER} --format cyclonedx --output sbom.json ${DOCKERHUB_REPOSITORY}:${IMAGE_TAG}"
         }
-      }
+        post {
+            always {
+            archiveArtifacts allowEmptyArchive: true, artifacts: 'sbom.json', fingerprint: true
+            }
+        }
     }
 
     stage('Publish Docker image') {
