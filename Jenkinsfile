@@ -61,24 +61,26 @@ pipeline {
     }
 
     stage('SonarQube analysis') {
-      steps {
-        withCredentials([string(credentialsId: env.SONAR_TOKEN_CREDENTIAL_ID, variable: 'SONAR_TOKEN')]) {
-          sh '''
-            npx sonar-scanner \
-              -Dsonar.host.url=$SONAR_HOST_URL \
-              -Dsonar.login=$SONAR_TOKEN \
-              -Dsonar.projectKey=$SONAR_PROJECT_KEY \
-              -Dsonar.projectName=$SONAR_PROJECT_NAME \
-              -Dsonar.sources=src \
-              -Dsonar.tests=src/__tests__ \
-              -Dsonar.test.inclusions=src/__tests__/**/*.test.ts,src/__tests__/**/*.e2e.test.ts \
-              -Dsonar.exclusions=node_modules/**,dist/**,coverage/**,reports/**,prisma/migrations/**,**/*.config.ts,**/*.config.js \
-              -Dsonar.typescript.lcov.reportPaths=coverage/lcov.info \
-              -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
-          '''
+        steps {
+            withSonarQubeEnv('SonarQube-brakissa') {   
+            withCredentials([string(credentialsId: 'brakissa-sonar-token', variable: 'SONAR_TOKEN')]) {
+                sh '''
+                npx sonar-scanner \
+                    -Dsonar.host.url=$SONAR_HOST_URL \
+                    -Dsonar.login=$SONAR_TOKEN \
+                    -Dsonar.projectKey=$SONAR_PROJECT_KEY \
+                    -Dsonar.projectName=$SONAR_PROJECT_NAME \
+                    -Dsonar.sources=src \
+                    -Dsonar.tests=src/__tests__ \
+                    -Dsonar.test.inclusions=src/__tests__/**/*.test.ts,src/__tests__/**/*.e2e.test.ts \
+                    -Dsonar.exclusions=node_modules/**,dist/**,coverage/**,reports/**,prisma/migrations/**,**/*.config.ts,**/*.config.js \
+                    -Dsonar.typescript.lcov.reportPaths=coverage/lcov.info \
+                    -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+                '''
+            }
+            }
         }
-      }
-    }
+  }
 
     stage('Quality Gate') {
       steps {
